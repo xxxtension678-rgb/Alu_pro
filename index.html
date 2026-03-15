@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>alu glass pro v22</title>
+    <style>
+        * { font-family: 'Courier New', Courier, monospace; box-sizing: border-box; font-weight: 900 !important; text-transform: lowercase; color: #ffffff; }
+        body { background: radial-gradient(circle at 20% 20%, #2b354e, #0d1117); margin: 0; padding: 15px; min-height: 100vh; display: flex; justify-content: center; }
+        .container { width: 100%; max-width: 550px; }
+        .glass-card { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(25px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 25px; padding: 20px; margin-bottom: 20px; box-shadow: 15px 15px 40px rgba(0,0,0,0.5); }
+        h2 { text-align: center; margin-bottom: 20px; font-size: 18px; letter-spacing: 2px; }
+        .input-row { display: grid; grid-template-columns: 1fr 1fr 0.8fr 40px; gap: 10px; margin-bottom: 10px; align-items: end; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px; }
+        label { display: block; margin-bottom: 5px; color: rgba(255,255,255,0.4); font-size: 11px; }
+        input { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.05); background: #0d1117; font-size: 16px; outline: none; }
+        .btn { padding: 15px; border-radius: 15px; border: none; cursor: pointer; width: 100%; margin-top: 10px; transition: 0.2s; }
+        .btn-main { background: #ffffff; color: #000; }
+        .btn-sec { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.05); }
+        .add-btn { background: #00ff00; color: #000; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 24px; cursor: pointer; margin-bottom: 15px; }
+        .del-btn { background: #ff4d4d; color: #fff; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 20px; }
+        table { width: 100%; border-collapse: separate; border-spacing: 0; }
+        th, td { padding: 12px 8px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.03); font-size: 12px; }
+        th { color: rgba(255,255,255,0.4); }
+        .total-row { background: rgba(255,255,255,0.05); }
+        .sqft-row td { color: #00ff00; }
+        .price-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    </style>
+</head>
+<body>
+
+<div id="mainPage" class="container">
+    <h2>alu multi pro v22</h2>
+    <button class="btn btn-sec" style="margin-bottom: 20px;" onclick="showPage('settingPage')">settings</button>
+    
+    <div class="glass-card">
+        <div id="windowInputs"></div>
+        <div style="display: flex; gap: 10px;">
+            <div class="add-btn" onclick="addWindow()">+</div>
+            <button class="btn btn-sec" style="width: auto; margin-top: 0; padding: 0 15px;" onclick="clearAll()">clear all</button>
+        </div>
+        <button class="btn btn-main" onclick="calculate()">calculate all</button>
+        
+        <div id="exportBtns" style="display:none;" class="price-grid">
+            <button class="btn btn-sec" style="margin-top:20px;" onclick="window.print()">pdf</button>
+            <button class="btn btn-sec" style="margin-top:20px;" onclick="exportExcel()">excel</button>
+        </div>
+    </div>
+    
+    <div id="resultArea"></div>
+</div>
+
+<div id="settingPage" class="container" style="display:none;">
+    <h2>price settings</h2>
+    <div class="glass-card price-grid" id="priceInputs"></div>
+    <button class="btn btn-main" onclick="savePrices()">save settings</button>
+</div>
+
+<script>
+    const labels = ["top frame", "btm frame", "side frame", "lock frame", "hook frame", "wheel frame", "top cap", "btm cap", "wheel", "hook lock", "weatherstrip", "glass (4x6)", "sqft labor"];
+    const defaults = [150800, 200200, 105900, 98300, 98300, 104000, 570, 570, 2800, 13000, 39900, 65000, 9000];
+
+    window.onload = () => {
+        loadSettingsUI();
+        const savedData = localStorage.getItem('alu_draft_v22');
+        if (savedData) {
+            const data = JSON.parse(savedData);
+            data.forEach(d => addWindow(d.h, d.w, d.q));
+        } else {
+            addWindow();
+        }
+    };
+
+    function showPage(id) { 
+        document.getElementById('mainPage').style.display = id === 'mainPage' ? 'block' : 'none'; 
+        document.getElementById('settingPage').style.display = id === 'settingPage' ? 'block' : 'none'; 
+    }
+
+    function addWindow(h = '', w = '', q = '') {
+        const container = document.getElementById('windowInputs');
+        const div = document.createElement('div');
+        div.className = 'input-row';
+        div.innerHTML = `
+            <div><label>h(ft)</label><input type="number" class="h-in" value="${h}" step="any" oninput="saveDraft()"></div>
+            <div><label>w(ft)</label><input type="number" class="w-in" value="${w}" step="any" oninput="saveDraft()"></div>
+            <div><label>qty</label><input type="number" class="q-in" value="${q}" oninput="saveDraft()"></div>
+            <div class="del-btn" onclick="removeRow(this)">×</div>
+        `;
+        container.appendChild(div);
+        saveDraft();
+    }
+
+    function removeRow(btn) {
+        if (confirm("ဒီ window ကို ဖျက်မှာလား ဆရာ?")) {
+            btn.parentElement.remove();
+            saveDraft();
+        }
+    }
+
+    function clearAll() {
+        if (confirm("အကုန်လုံးကို ဖျက်မှာလား ဆရာ?")) {
+            document.getElementById('windowInputs').innerHTML = '';
+            addWindow();
+            saveDraft();
+        }
+    }
+
+    function saveDraft() {
+        const hs = document.querySelectorAll('.h-in'), ws = document.querySelectorAll('.w-in'), qs = document.querySelectorAll('.q-in');
+        let draft = [];
+        hs.forEach((h, i) => { draft.push({ h: h.value, w: ws[i].value, q: qs[i].value }); });
+        localStorage.setItem('alu_draft_v22', JSON.stringify(draft));
+    }
+
+    function applyPRRule(used, up) {
+        if (used > 10) return up; if (used > 6.5) return up * 0.5; if (used > 5) return up/3;
+        if (used > 4) return up/4; if (used > 3) return up/5; if (used > 2.5) return up/6;
+        if (used > 2) return up/8; if (used > 1.5) return up/10; if (used > 1) return up/13;
+        return up/20;
+    }
+
+    function getOpticutterCost(sizes, unitPrice) {
+        if (!sizes.length) return { amt: 0, qStr: "0" };
+        sizes.sort((a, b) => b - a);
+        let bins = [];
+        sizes.forEach(s => {
+            let placed = false;
+            for (let i = 0; i < bins.length; i++) { if (bins[i] >= s) { bins[i] -= s; placed = true; break; } }
+            if (!placed) bins.push(20 - s);
+        });
+        let fullBars = bins.length - 1;
+        let lastUsed = 20 - bins[bins.length - 1];
+        let p = applyPRRule(lastUsed, unitPrice);
+        let totalAmt = (fullBars * unitPrice) + p;
+        let qtyStr = lastUsed > 10 ? (fullBars + 1) + " bar" : (lastUsed > 6.5 ? (fullBars + 0.5) + " bar" : (fullBars > 0 ? fullBars + " bar + " : "") + lastUsed.toFixed(1) + "'");
+        return { amt: Math.ceil(totalAmt/100)*100, qStr: qtyStr };
+    }
+
+    function calculate() {
+        saveDraft();
+        const hs = document.querySelectorAll('.h-in'), ws = document.querySelectorAll('.w-in'), qs = document.querySelectorAll('.q-in');
+        let data = [];
+        hs.forEach((h, i) => { if(h.value && ws[i].value && qs[i].value) data.push({ h: parseFloat(h.value), w: parseFloat(ws[i].value), q: parseInt(qs[i].value) }); });
+        if(!data.length) return alert("data အရင်ရိုက်ပါ ဆရာ");
+
+        const p = JSON.parse(localStorage.getItem('alu_v22_prices') || '{}');
+        const getP = (i) => parseFloat(p['v'+i] || defaults[i-1]);
+
+        let allSizes = { top: [], btm: [], side: [], lock: [], hook: [], wheel: [], glass: [] };
+        let totalSqft = 0, weatherAmt = 0, topCaps = 0, btmCaps = 0, wheels = 0, locks = 0;
+
+        data.forEach(d => {
+            totalSqft += d.h * d.w * d.q;
+            topCaps += d.q * 4; btmCaps += d.q * 4; 
+            wheels += d.q * 4; locks += d.q * 2;
+            weatherAmt += (d.h * d.q * 4) / 300;
+            for(let i=0; i<d.q; i++) {
+                allSizes.top.push(d.w); allSizes.btm.push(d.w);
+                allSizes.side.push(d.h, d.h); allSizes.lock.push(d.h, d.h);
+                allSizes.hook.push(d.h, d.h); allSizes.wheel.push(d.w/2, d.w/2, d.w/2, d.w/2);
+                allSizes.glass.push(d.h * (d.w/2), d.h * (d.w/2));
+            }
+        });
+
+        let gBins = getOpticutterBins(allSizes.glass, 24);
+        let gAmt = (gBins.length - 1) * getP(12) + ((24 - gBins[gBins.length-1])/24 > 0.5 ? getP(12) : getP(12)*0.5);
+        let gQtyStr = (gBins.length - 1 + ((24 - gBins[gBins.length-1])/24 > 0.5 ? 1 : 0.5)) + " sht";
+
+        let rows = [
+            { n: "top frame", ...getOpticutterCost(allSizes.top, getP(1)) },
+            { n: "btm frame", ...getOpticutterCost(allSizes.btm, getP(2)) },
+            { n: "side frame", ...getOpticutterCost(allSizes.side, getP(3)) },
+            { n: "lock frame", ...getOpticutterCost(allSizes.lock, getP(4)) },
+            { n: "hook frame", ...getOpticutterCost(allSizes.hook, getP(5)) },
+            { n: "wheel frame", ...getOpticutterCost(allSizes.wheel, getP(6)) },
+            { n: "top cap", qStr: topCaps, amt: topCaps * getP(7) },
+            { n: "btm cap", qStr: btmCaps, amt: btmCaps * getP(8) },
+            { n: "wheel", qStr: wheels, amt: wheels * getP(9) },
+            { n: "hook lock", qStr: locks, amt: locks * getP(10) },
+            { n: "weatherstrip", qStr: Math.ceil(weatherAmt) + " roll", amt: Math.ceil(weatherAmt) * getP(11) },
+            { n: "glass", qStr: gQtyStr, amt: Math.ceil(gAmt/100)*100 },
+            { n: "sqft labor", qStr: totalSqft.toFixed(1), amt: totalSqft * getP(13) }
+        ];
+
+        let total = Math.ceil(rows.reduce((s, r) => s + r.amt, 0)/100)*100;
+        let htm = `<div class="glass-card"><table><thead><tr><th>item</th><th>qty</th><th>amt</th></tr></thead><tbody>`;
+        rows.forEach(r => htm += `<tr><td>${r.n}</td><td>${r.qStr}</td><td>${r.amt.toLocaleString()}</td></tr>`);
+        htm += `<tr class="total-row"><td colspan="2" align="right">total</td><td>${total.toLocaleString()}</td></tr>`;
+        htm += `<tr class="sqft-row"><td colspan="2" align="right">avg 1sqft</td><td>${Math.ceil((total/totalSqft)/100)*100}</td></tr></tbody></table></div>`;
+        document.getElementById('resultArea').innerHTML = htm;
+        document.getElementById('exportBtns').style.display = 'grid';
+    }
+
+    function getOpticutterBins(items, binSize) {
+        let bins = []; items.sort((a,b)=>b-a);
+        items.forEach(item => {
+            let placed = false;
+            for (let i=0; i<bins.length; i++) { if (bins[i] >= item) { bins[i] -= item; placed = true; break; } }
+            if (!placed) bins.push(binSize - item);
+        });
+        return bins;
+    }
+
+    function exportExcel() {
+        let table = document.querySelector("table");
+        let csv = Array.from(table.rows).map(row => Array.from(row.cells).map(c => c.innerText.replace(/,/g, "")).join(",")).join("\n");
+        let blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        let link = document.createElement("a");
+        link.href = window.URL.createObjectURL(blob);
+        link.download = "estimate_v22.csv";
+        link.click();
+    }
+
+    function loadSettingsUI() {
+        let htm = ""; labels.forEach((l, i) => { htm += `<div><label>${l}</label><input type="number" id="p${i+1}" value="${defaults[i]}"></div>`; });
+        document.getElementById('priceInputs').innerHTML = htm;
+        let s = localStorage.getItem('alu_v22_prices');
+        if(s) { let p = JSON.parse(s); labels.forEach((_, i) => { document.getElementById('p'+(i+1)).value = p['v'+(i+1)]; }); }
+    }
+
+    function savePrices() {
+        let p = {}; labels.forEach((_, i) => { p['v'+(i+1)] = document.getElementById('p'+(i+1)).value; });
+        localStorage.setItem('alu_v22_prices', JSON.stringify(p)); showPage('mainPage');
+    }
+</script>
+</body>
+</html>
