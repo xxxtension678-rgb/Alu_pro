@@ -16,17 +16,39 @@
         .btn { padding: 15px; border-radius: 15px; border: none; cursor: pointer; width: 100%; margin-top: 10px; transition: 0.2s; }
         .btn-main { background: #ffffff; color: #000; }
         .btn-sec { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.05); }
-        .add-btn { background: #00ff00; color: #000; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 24px; cursor: pointer; margin-bottom: 15px; }
+        
+        .add-btn { background: #0047AB; color: #fff; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 24px; cursor: pointer; margin-bottom: 15px; }
         .del-btn { background: #ff4d4d; color: #fff; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 20px; }
+        
         table { width: 100%; border-collapse: separate; border-spacing: 0; }
-        th, td { padding: 12px 8px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.03); font-size: 12px; }
+        th, td { padding: 10px 5px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.03); font-size: 11px; }
         th { color: rgba(255,255,255,0.4); }
         .total-row { background: rgba(255,255,255,0.05); }
         .sqft-row td { color: #00ff00; }
         .price-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+        /* Loading Spinner */
+        #loader { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; }
+        .spinner { width: 50px; height: 50px; border: 5px solid rgba(255,255,255,0.1); border-top-color: #0047AB; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Typewriter Animation for Table Rows */
+        .type-row { opacity: 0; animation: fadeIn 0.3s forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        @media print {
+            body { background: #ffffff; }
+            * { color: #000000 !important; text-shadow: none !important; }
+            .glass-card { background: #ffffff; backdrop-filter: none; border: 1px solid #000; box-shadow: none; }
+            .btn, .add-btn, .del-btn, h2:first-of-type, .btn-sec:first-of-type, #loader { display: none !important; }
+            .sqft-row td { color: #000000 !important; font-weight: bold !important; }
+            .type-row { opacity: 1 !important; }
+        }
     </style>
 </head>
 <body>
+
+<div id="loader"><div class="spinner"></div></div>
 
 <div id="mainPage" class="container">
     <h2>alu multi pro v22</h2>
@@ -39,14 +61,19 @@
             <button class="btn btn-sec" style="width: auto; margin-top: 0; padding: 0 15px;" onclick="clearAll()">clear all</button>
         </div>
         <button class="btn btn-main" onclick="calculate()">calculate all</button>
-        
-        <div id="exportBtns" style="display:none;" class="price-grid">
-            <button class="btn btn-sec" style="margin-top:20px;" onclick="window.print()">pdf</button>
-            <button class="btn btn-sec" style="margin-top:20px;" onclick="exportExcel()">excel</button>
-        </div>
     </div>
+</div>
+
+<div id="resultPage" class="container" style="display:none;">
+    <h2>estimation results</h2>
+    <button class="btn btn-sec" style="margin-bottom: 20px;" onclick="showPage('mainPage')">← edit input</button>
     
     <div id="resultArea"></div>
+    
+    <div id="exportBtns" class="price-grid">
+        <button class="btn btn-sec" style="margin-top:20px;" onclick="window.print()">pdf</button>
+        <button class="btn btn-sec" style="margin-top:20px;" onclick="exportExcel()">excel</button>
+    </div>
 </div>
 
 <div id="settingPage" class="container" style="display:none;">
@@ -62,7 +89,7 @@
     window.onload = () => {
         loadSettingsUI();
         const savedData = localStorage.getItem('alu_draft_v22');
-        if (savedData) {
+        if (savedData && JSON.parse(savedData).length > 0) {
             const data = JSON.parse(savedData);
             data.forEach(d => addWindow(d.h, d.w, d.q));
         } else {
@@ -72,6 +99,7 @@
 
     function showPage(id) { 
         document.getElementById('mainPage').style.display = id === 'mainPage' ? 'block' : 'none'; 
+        document.getElementById('resultPage').style.display = id === 'resultPage' ? 'block' : 'none'; 
         document.getElementById('settingPage').style.display = id === 'settingPage' ? 'block' : 'none'; 
     }
 
@@ -99,16 +127,151 @@
     function clearAll() {
         if (confirm("အကုန်လုံးကို ဖျက်မှာလား ဆရာ?")) {
             document.getElementById('windowInputs').innerHTML = '';
+            localStorage.removeItem('alu_draft_v22');
             addWindow();
-            saveDraft();
         }
     }
 
     function saveDraft() {
         const hs = document.querySelectorAll('.h-in'), ws = document.querySelectorAll('.w-in'), qs = document.querySelectorAll('.q-in');
         let draft = [];
-        hs.forEach((h, i) => { draft.push({ h: h.value, w: ws[i].value, q: qs[i].value }); });
+        hs.forEach((h, i) => { 
+            if(h.value || ws[i].value || qs[i].value) {
+                draft.push({ h: h.value, w: ws[i].value, q: qs[i].value }); 
+            }
+        });
         localStorage.setItem('alu_draft_v22', JSON.stringify(draft));
+    }
+
+    function applyPRRule(used, up) {
+        if (used > 10) return up; if (used > 6.5) return up * 0.5; if (used > 5) return up/3;
+        if (used > 4) return up/4; if (used > 3) return up/5; if (used > 2.5) return up/6;
+        if (used > 2) return up/8; if (used > 1.5) return up/10; if (used > 1) return up/13;
+        return up/20;
+    }
+
+    function getOpticutterCost(sizes, unitPrice) {
+        if (!sizes.length) return { amt: 0, qStr: "0" };
+        sizes.sort((a, b) => b - a);
+        let bins = [];
+        sizes.forEach(s => {
+            let placed = false;
+            for (let i = 0; i < bins.length; i++) { if (bins[i] >= s) { bins[i] -= s; placed = true; break; } }
+            if (!placed) bins.push(20 - s);
+        });
+        let fullBars = bins.length - 1;
+        let lastUsed = 20 - bins[bins.length - 1];
+        let p = applyPRRule(lastUsed, unitPrice);
+        let totalAmt = (fullBars * unitPrice) + p;
+        let qtyStr = lastUsed > 10 ? (fullBars + 1) + " bar" : (lastUsed > 6.5 ? (fullBars + 0.5) + " bar" : (fullBars > 0 ? fullBars + " bar + " : "") + lastUsed.toFixed(1) + "'");
+        return { amt: Math.ceil(totalAmt/100)*100, qStr: qtyStr };
+    }
+
+    async function calculate() {
+        saveDraft();
+        const hs = document.querySelectorAll('.h-in'), ws = document.querySelectorAll('.w-in'), qs = document.querySelectorAll('.q-in');
+        let data = [];
+        hs.forEach((h, i) => { if(h.value && ws[i].value && qs[i].value) data.push({ h: parseFloat(h.value), w: parseFloat(ws[i].value), q: parseInt(qs[i].value) }); });
+        if(!data.length) return alert("data အရင်ရိုက်ပါ ဆရာ");
+
+        // Show Loader
+        document.getElementById('loader').style.display = 'block';
+        
+        // Wait for 1 second
+        await new Promise(r => setTimeout(r, 1000));
+        
+        document.getElementById('loader').style.display = 'none';
+
+        const p = JSON.parse(localStorage.getItem('alu_v22_prices') || '{}');
+        const getP = (i) => parseFloat(p['v'+i] || defaults[i-1]);
+
+        let allSizes = { top: [], btm: [], side: [], lock: [], hook: [], wheel: [], glass: [] };
+        let totalSqft = 0, weatherAmt = 0, topCaps = 0, btmCaps = 0, wheels = 0, locks = 0;
+
+        data.forEach(d => {
+            totalSqft += d.h * d.w * d.q;
+            topCaps += d.q * 4; btmCaps += d.q * 4; 
+            wheels += d.q * 4; locks += d.q * 2;
+            weatherAmt += (d.h * d.q * 4) / 300;
+            for(let i=0; i<d.q; i++) {
+                allSizes.top.push(d.w); allSizes.btm.push(d.w);
+                allSizes.side.push(d.h, d.h); allSizes.lock.push(d.h, d.h);
+                allSizes.hook.push(d.h, d.h); allSizes.wheel.push(d.w/2, d.w/2, d.w/2, d.w/2);
+                allSizes.glass.push(d.h * (d.w/2), d.h * (d.w/2));
+            }
+        });
+
+        let gBins = getOpticutterBins(allSizes.glass, 24);
+        let gAmt = (gBins.length - 1) * getP(12) + ((24 - gBins[gBins.length-1])/24 > 0.5 ? getP(12) : getP(12)*0.5);
+        let gQtyStr = (gBins.length - 1 + ((24 - gBins[gBins.length-1])/24 > 0.5 ? 1 : 0.5)) + " sht";
+
+        let rows = [
+            { n: "top frame", ...getOpticutterCost(allSizes.top, getP(1)), pr: getP(1) },
+            { n: "btm frame", ...getOpticutterCost(allSizes.btm, getP(2)), pr: getP(2) },
+            { n: "side frame", ...getOpticutterCost(allSizes.side, getP(3)), pr: getP(3) },
+            { n: "lock frame", ...getOpticutterCost(allSizes.lock, getP(4)), pr: getP(4) },
+            { n: "hook frame", ...getOpticutterCost(allSizes.hook, getP(5)), pr: getP(5) },
+            { n: "wheel frame", ...getOpticutterCost(allSizes.wheel, getP(6)), pr: getP(6) },
+            { n: "top cap", qStr: topCaps, amt: topCaps * getP(7), pr: getP(7) },
+            { n: "btm cap", qStr: btmCaps, amt: btmCaps * getP(8), pr: getP(8) },
+            { n: "wheel", qStr: wheels, amt: wheels * getP(9), pr: getP(9) },
+            { n: "hook lock", qStr: locks, amt: locks * getP(10), pr: getP(10) },
+            { n: "weatherstrip", qStr: Math.ceil(weatherAmt) + " roll", amt: Math.ceil(weatherAmt) * getP(11), pr: getP(11) },
+            { n: "glass", qStr: gQtyStr, amt: Math.ceil(gAmt/100)*100, pr: getP(12) },
+            { n: "sqft labor", qStr: totalSqft.toFixed(1), amt: totalSqft * getP(13), pr: getP(13) }
+        ];
+
+        let total = Math.ceil(rows.reduce((s, r) => s + r.amt, 0)/100)*100;
+        
+        let htm = `<div class="glass-card"><table><thead><tr><th>item</th><th>qty</th><th>price</th><th>amt</th></tr></thead><tbody>`;
+        
+        rows.forEach((r, idx) => {
+            htm += `<tr class="type-row" style="animation-delay: ${idx * 0.1}s">
+                <td>${r.n}</td><td>${r.qStr}</td><td>${r.pr.toLocaleString()}</td><td>${r.amt.toLocaleString()}</td>
+            </tr>`;
+        });
+
+        htm += `<tr class="total-row type-row" style="animation-delay: ${rows.length * 0.1}s"><td colspan="3" align="right">total</td><td>${total.toLocaleString()}</td></tr>`;
+        htm += `<tr class="sqft-row type-row" style="animation-delay: ${(rows.length + 1) * 0.1}s"><td colspan="3" align="right">avg 1sqft</td><td>${Math.ceil((total/totalSqft)/100)*100}</td></tr></tbody></table></div>`;
+        
+        document.getElementById('resultArea').innerHTML = htm;
+        showPage('resultPage');
+    }
+
+    function getOpticutterBins(items, binSize) {
+        let bins = []; items.sort((a,b)=>b-a);
+        items.forEach(item => {
+            let placed = false;
+            for (let i=0; i<bins.length; i++) { if (bins[i] >= item) { bins[i] -= item; placed = true; break; } }
+            if (!placed) bins.push(binSize - item);
+        });
+        return bins;
+    }
+
+    function exportExcel() {
+        let table = document.querySelector("table");
+        let csv = Array.from(table.rows).map(row => Array.from(row.cells).map(c => c.innerText.replace(/,/g, "")).join(",")).join("\n");
+        let blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        let link = document.createElement("a");
+        link.href = window.URL.createObjectURL(blob);
+        link.download = "estimate_v22.csv";
+        link.click();
+    }
+
+    function loadSettingsUI() {
+        let htm = ""; labels.forEach((l, i) => { htm += `<div><label>${l}</label><input type="number" id="p${i+1}" value="${defaults[i]}"></div>`; });
+        document.getElementById('priceInputs').innerHTML = htm;
+        let s = localStorage.getItem('alu_v22_prices');
+        if(s) { let p = JSON.parse(s); labels.forEach((_, i) => { document.getElementById('p'+(i+1)).value = p['v'+(i+1)]; }); }
+    }
+
+    function savePrices() {
+        let p = {}; labels.forEach((_, i) => { p['v'+(i+1)] = document.getElementById('p'+(i+1)).value; });
+        localStorage.setItem('alu_v22_prices', JSON.stringify(p)); showPage('mainPage');
+    }
+</script>
+</body>
+</html>
     }
 
     function applyPRRule(used, up) {
